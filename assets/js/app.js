@@ -179,18 +179,21 @@ createApp({
         const quotaLoading = ref(false);
         const quotaError = ref(false);
         const quotaAvailable = ref(false);
+        const normalizeBaseUrl = (url) => String(url || '').trim().replace(/\/+$/, '');
+        const getImageGenBaseUrl = () => normalizeBaseUrl(settings.imageGenApiUrl || IMAGE_GEN_BASE_URL);
+        const getImageGenModel = () => String(settings.imageGenModel || 'nai-diffusion-4-5-full').trim();
 
         const fetchQuota = async () => {
             quotaLoading.value = true;
             quotaError.value = false;
             try {
                 const imageGenToken = settings.imageGenKey.trim();
+                const baseUrl = getImageGenBaseUrl();
                 if (!imageGenToken) {
                     quotaValue.value = 0;
                     quotaAvailable.value = false;
                     return;
                 }
-                const baseUrl = IMAGE_GEN_BASE_URL;
                 const response = await fetch(`${baseUrl}/api/api/getUser`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -552,7 +555,9 @@ createApp({
             fontFamily: 'modern',
             fontFamilyVersion: 4,
             fontSize: window.innerWidth > 768 ? 16 : 14,
+            imageGenApiUrl: IMAGE_GEN_BASE_URL,
             imageGenKey: '',
+            imageGenModel: 'nai-diffusion-4-5-full',
             imageStyle: 'vertical',
             customImageArtists: '',
             imageSize: '竖图',
@@ -712,7 +717,7 @@ createApp({
         }, { deep: true });
 
         // Watch image gen and model settings for sync
-        watch(() => [settings.imageGenKey, settings.imageStyle, settings.customImageArtists, settings.imageGenCount, settings.qualityModel, settings.balancedModel, settings.fastModel, settings.uiTemplateModel, settings.fontFamily, settings.fontFamilyVersion], () => {
+        watch(() => [settings.imageGenApiUrl, settings.imageGenKey, settings.imageGenModel, settings.imageStyle, settings.customImageArtists, settings.imageGenCount, settings.qualityModel, settings.balancedModel, settings.fastModel, settings.uiTemplateModel, settings.fontFamily, settings.fontFamilyVersion], () => {
             syncSettingsToGenerator();
         });
 
@@ -732,6 +737,16 @@ createApp({
                 }
                 showModelSelector.value = false;
                 showChatModelSelector.value = false;
+            }
+        });
+
+        watch(() => [settings.qualityModel, settings.balancedModel, settings.fastModel], () => {
+            if (currentModelMode.value === 'fast') {
+                settings.model = settings.fastModel;
+            } else if (currentModelMode.value === 'balanced') {
+                settings.model = settings.balancedModel;
+            } else {
+                settings.model = settings.qualityModel;
             }
         });
 
@@ -4065,7 +4080,8 @@ ${content}
                 const id = setTimeout(() => controller.abort(), 10000);
                 const startTime = performance.now();
 
-                const baseUrl = IMAGE_GEN_BASE_URL;
+                const baseUrl = getImageGenBaseUrl();
+                if (!baseUrl) throw new Error('Missing image generation API URL');
 
                 await fetch(baseUrl, {
                     method: 'HEAD',
@@ -9053,7 +9069,8 @@ ${content}
 
         const enforceSpecialRules = () => {
             const imageGenToken = settings.imageGenKey.trim();
-            const baseUrl = IMAGE_GEN_BASE_URL;
+            const baseUrl = getImageGenBaseUrl() || IMAGE_GEN_BASE_URL;
+            const imageGenModel = getImageGenModel() || 'nai-diffusion-4-5-full';
 
             // 1. NAI画图正则 (统一版本)
             const imageGenRegexName = 'NAI画图正则';
@@ -9093,7 +9110,7 @@ ${content}
             const imageGenRegexContent = {
                 name: imageGenRegexName,
                 regex: '/image###([\\s\\S]*?)###/g',
-                replacement: '<div style="width: auto; height: auto; max-width: 100%; box-sizing: border-box; padding: 2px; border: 1px solid rgba(255,255,255,0.58); background: rgba(255,255,255,0.32); position: relative; border-radius: 12px; overflow: hidden; display: inline-flex; justify-content: center; align-items: center; box-shadow: 0 4px 14px rgba(148,163,184,0.06);"><img src="' + baseUrl + '/generate?tag=$1&token=' + imageGenToken + '&model=nai-diffusion-4-5-full&artist=' + encodedTargetArtists + '&size=' + settings.imageSize + '&steps=40&scale=6&cfg=0&sampler=k_dpmpp_2m_sde&negative={{{{bad anatomy}}}},{bad feet},bad hands,{{{bad proportions}}},{blurry},cloned face,cropped,{{{deformed}}},{{{disfigured}}},error,{{{extra arms}}},{extra digit},{{{extra legs}}},extra limbs,{{extra limbs}},{fewer digits},{{{fused fingers}}},gross proportions,ink eyes,ink hair,jpeg artifacts,{{{{long neck}}}},low quality,{malformed limbs},{{missing arms}},{missing fingers},{{missing legs}},{{{more than 2 nipples}}},mutated hands,{{{mutation}}},normal quality,owres,{{poorly drawn face}},{{poorly drawn hands}},reen eyes,signature,text,{{too many fingers}},{{{ugly}}},username,uta,watermark,worst quality,{{{more than 2 legs}}},awkward hand sign,weird hand gesture,contorted hand,unnatural finger pose,deformed hand gesture,{shaka},{hang loose},{{rock on}},{shaka sign}&nocache=0&noise_schedule=karras"  alt="生成图片" style="max-width: 100%; height: auto; width: auto; display: block; object-fit: contain; border-radius: 9px; transition: transform 0.3s ease;"></div>',
+                replacement: '<div style="width: auto; height: auto; max-width: 100%; box-sizing: border-box; padding: 2px; border: 1px solid rgba(255,255,255,0.58); background: rgba(255,255,255,0.32); position: relative; border-radius: 12px; overflow: hidden; display: inline-flex; justify-content: center; align-items: center; box-shadow: 0 4px 14px rgba(148,163,184,0.06);"><img src="' + baseUrl + '/generate?tag=$1&token=' + encodeURIComponent(imageGenToken) + '&model=' + encodeURIComponent(imageGenModel) + '&artist=' + encodedTargetArtists + '&size=' + encodeURIComponent(settings.imageSize) + '&steps=40&scale=6&cfg=0&sampler=k_dpmpp_2m_sde&negative={{{{bad anatomy}}}},{bad feet},bad hands,{{{bad proportions}}},{blurry},cloned face,cropped,{{{deformed}}},{{{disfigured}}},error,{{{extra arms}}},{extra digit},{{{extra legs}}},extra limbs,{{extra limbs}},{fewer digits},{{{fused fingers}}},gross proportions,ink eyes,ink hair,jpeg artifacts,{{{{long neck}}}},low quality,{malformed limbs},{{missing arms}},{missing fingers},{{missing legs}},{{{more than 2 nipples}}},mutated hands,{{{mutation}}},normal quality,owres,{{poorly drawn face}},{{poorly drawn hands}},reen eyes,signature,text,{{too many fingers}},{{{ugly}}},username,uta,watermark,worst quality,{{{more than 2 legs}}},awkward hand sign,weird hand gesture,contorted hand,unnatural finger pose,deformed hand gesture,{shaka},{hang loose},{{rock on}},{shaka sign}&nocache=0&noise_schedule=karras"  alt="生成图片" style="max-width: 100%; height: auto; width: auto; display: block; object-fit: contain; border-radius: 9px; transition: transform 0.3s ease;"></div>',
                 placement: [2],
                 markdownOnly: true,
                 promptOnly: false,

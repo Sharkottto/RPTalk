@@ -2041,10 +2041,9 @@
                                     <div class="group">
                                         <label
                                             class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">预设模型①</label>
-                                        <div class="relative flex-1 group"
-                                            @click="openModelSelector('qualityModel')">
+                                        <div class="relative flex-1 group">
                                             <div
-                                                class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-teal-500 transition-colors pointer-events-none z-10">
+                                                class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-teal-500 transition-colors pointer-events-none z-10">
                                                 <svg class="w-5 h-5" fill="none" stroke="currentColor"
                                                     viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round"
@@ -2053,25 +2052,26 @@
                                                     </path>
                                                 </svg>
                                             </div>
-                                            <div
-                                                class="w-full bg-gray-50/60 border-2 border-gray-100 rounded-xl pl-11 pr-4 py-3 text-gray-800 font-medium flex items-center justify-between cursor-pointer hover:bg-white hover:border-teal-300 hover:shadow-md transition-all active:scale-[0.99]">
-                                                <span class="truncate mr-2 font-mono text-sm">{{ settings.qualityModel
-                                                    || '请选择模型' }}</span>
-                                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor"
+                                            <input v-model.trim="settings.qualityModel" type="text"
+                                                class="w-full h-12 bg-gray-50/60 border-2 border-gray-100 rounded-xl pl-11 pr-12 py-0 text-gray-800 font-medium focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-100 focus:outline-none transition-all placeholder-gray-400 font-mono text-sm"
+                                                placeholder="手动输入模型名">
+                                            <button type="button" @click="openModelSelector('qualityModel')"
+                                                class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg text-gray-400 hover:text-teal-600 hover:bg-teal-50 flex items-center justify-center transition-colors"
+                                                title="从可用模型列表选择">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor"
                                                     viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                                        stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
                                                 </svg>
-                                            </div>
+                                            </button>
                                         </div>
                                     </div>
                                     <div class="group">
                                         <label
                                             class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">预设模型②</label>
-                                        <div class="relative flex-1 group"
-                                            @click="openModelSelector('balancedModel')">
+                                        <div class="relative flex-1 group">
                                             <div
-                                                class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-teal-500 transition-colors pointer-events-none z-10">
+                                                class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-teal-500 transition-colors pointer-events-none z-10">
                                                 <svg class="w-5 h-5" fill="none" stroke="currentColor"
                                                     viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round"
@@ -2080,41 +2080,44 @@
                                                     </path>
                                                 </svg>
                                             </div>
-                                            <div
-                                                class="w-full bg-gray-50/60 border-2 border-gray-100 rounded-xl pl-11 pr-4 py-3 text-gray-800 font-medium flex items-center justify-between cursor-pointer hover:bg-white hover:border-teal-300 hover:shadow-md transition-all active:scale-[0.99]">
-                                                <span class="truncate mr-2 font-mono text-sm">{{ settings.balancedModel
-                                                    || '请选择模型' }}</span>
-                                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor"
+                                            <input v-model.trim="settings.balancedModel" type="text"
+                                                class="w-full h-12 bg-gray-50/60 border-2 border-gray-100 rounded-xl pl-11 pr-12 py-0 text-gray-800 font-medium focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-100 focus:outline-none transition-all placeholder-gray-400 font-mono text-sm"
+                                                placeholder="手动输入模型名">
+                                            <button type="button" @click="openModelSelector('balancedModel')"
+                                                class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg text-gray-400 hover:text-teal-600 hover:bg-teal-50 flex items-center justify-center transition-colors"
+                                                title="从可用模型列表选择">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor"
                                                     viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                                        stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
                                                 </svg>
-                                            </div>
+                                            </button>
                                         </div>
                                     </div>
                                     <div class="group">
                                         <label
                                             class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">预设模型③</label>
-                                        <div class="relative flex-1 group"
-                                            @click="openModelSelector('fastModel')">
+                                        <div class="relative flex-1 group">
                                             <div
-                                                class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-teal-500 transition-colors pointer-events-none z-10">
+                                                class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-teal-500 transition-colors pointer-events-none z-10">
                                                 <svg class="w-5 h-5" fill="none" stroke="currentColor"
                                                     viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round"
                                                         stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                                                 </svg>
                                             </div>
-                                            <div
-                                                class="w-full bg-gray-50/60 border-2 border-gray-100 rounded-xl pl-11 pr-4 py-3 text-gray-800 font-medium flex items-center justify-between cursor-pointer hover:bg-white hover:border-teal-300 hover:shadow-md transition-all active:scale-[0.99]">
-                                                <span class="truncate mr-2 font-mono text-sm">{{ settings.fastModel ||
-                                                    '请选择模型' }}</span>
-                                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor"
+                                            <input v-model.trim="settings.fastModel" type="text"
+                                                class="w-full h-12 bg-gray-50/60 border-2 border-gray-100 rounded-xl pl-11 pr-12 py-0 text-gray-800 font-medium focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-100 focus:outline-none transition-all placeholder-gray-400 font-mono text-sm"
+                                                placeholder="手动输入模型名">
+                                            <button type="button" @click="openModelSelector('fastModel')"
+                                                class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg text-gray-400 hover:text-teal-600 hover:bg-teal-50 flex items-center justify-center transition-colors"
+                                                title="从可用模型列表选择">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor"
                                                     viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                                        stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
                                                 </svg>
-                                            </div>
+                                            </button>
                                         </div>
                                     </div>
                                     <div class="group col-span-1 md:col-span-2 mt-2">
@@ -2162,14 +2165,34 @@
                                                 class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500 hover:accent-teal-400 transition-all">
                                         </div>
 
+                                        <!-- Image API URL -->
+                                        <div
+                                            class="bg-gray-50/60 p-4 rounded-xl border border-gray-100 hover:bg-white hover:border-gray-200 hover:shadow-sm transition-all duration-200 flex flex-col justify-center">
+                                            <label
+                                                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">生图 API 地址</label>
+                                            <input v-model.trim="settings.imageGenApiUrl" type="text"
+                                                class="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 text-sm focus:ring-2 focus:ring-teal-100 focus:border-teal-400 focus:outline-none transition-all shadow-sm font-mono"
+                                                placeholder="https://nai.sta1n.cn">
+                                        </div>
+
                                         <!-- Image Key -->
                                         <div
                                             class="bg-gray-50/60 p-4 rounded-xl border border-gray-100 hover:bg-white hover:border-gray-200 hover:shadow-sm transition-all duration-200 flex flex-col justify-center">
                                             <label
-                                                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">自动生图密钥</label>
+                                                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">生图 API Key</label>
                                             <input v-model="settings.imageGenKey" type="password"
-                                                class="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 text-sm focus:ring-2 focus:ring-teal-100 focus:border-teal-400 focus:outline-none transition-all shadow-sm"
+                                                class="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 text-sm focus:ring-2 focus:ring-teal-100 focus:border-teal-400 focus:outline-none transition-all shadow-sm font-mono"
                                                 placeholder="STA1N-...">
+                                        </div>
+
+                                        <!-- Image Model -->
+                                        <div
+                                            class="bg-gray-50/60 p-4 rounded-xl border border-gray-100 hover:bg-white hover:border-gray-200 hover:shadow-sm transition-all duration-200 flex flex-col justify-center">
+                                            <label
+                                                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">生图模型</label>
+                                            <input v-model.trim="settings.imageGenModel" type="text"
+                                                class="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 text-sm focus:ring-2 focus:ring-teal-100 focus:border-teal-400 focus:outline-none transition-all shadow-sm font-mono"
+                                                placeholder="nai-diffusion-4-5-full">
                                         </div>
 
                                         <!-- Image Style -->
