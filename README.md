@@ -1,4 +1,4 @@
-# Roleplay Hub
+# RPTalk
 
 Roleplay Hub 是一个纯前端运行的本地优先 AI Roleplay 对话和角色卡工具。本仓库基于 [STA1N156/RP-Hub](https://github.com/STA1N156/RP-Hub) 部署整理，并保留原项目的非商业授权要求。
 
