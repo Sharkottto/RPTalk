@@ -879,6 +879,11 @@ createApp({
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
+        const escapeHtmlAttribute = (value) => String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
         const indentXmlText = (text, spaces = 0) => {
             const prefix = ' '.repeat(Math.max(0, spaces));
             return String(text || '')
@@ -2282,6 +2287,8 @@ createApp({
             }
             newReplacement = newReplacement.replace(/size=[^&]+/, 'size=' + settings.imageSize);
             regex.replacement = newReplacement;
+            regex.replacementMode = 'imageGenUrl';
+            regex.imageArtist = targetArtists;
 
             let messages = [];
             // 检查 Artist 变化
@@ -3536,6 +3543,27 @@ ${content}
                     const replacement = script.hasOwnProperty('replacement')
                         ? script.replacement
                         : (script.replaceString || '');
+                    const replacer = script.replacementMode === 'imageGenUrl'
+                        ? (...args) => {
+                            const prompt = args[1] || '';
+                            const params = new URLSearchParams({
+                                tag: prompt,
+                                token: settings.imageGenKey || '',
+                                model: getImageGenModel() || 'nai-diffusion-4-5-full',
+                                artist: script.imageArtist || '',
+                                size: settings.imageSize || '',
+                                steps: '40',
+                                scale: '6',
+                                cfg: '0',
+                                sampler: 'k_dpmpp_2m_sde',
+                                negative: '{{{{bad anatomy}}}},{bad feet},bad hands,{{{bad proportions}}},{blurry},cloned face,cropped,{{{deformed}}},{{{disfigured}}},error,{{{extra arms}}},{extra digit},{{{extra legs}}},extra limbs,{{extra limbs}},{fewer digits},{{{fused fingers}}},gross proportions,ink eyes,ink hair,jpeg artifacts,{{{{long neck}}}},low quality,{malformed limbs},{{missing arms}},{missing fingers},{{missing legs}},{{{more than 2 nipples}}},mutated hands,{{{mutation}}},normal quality,owres,{{poorly drawn face}},{{poorly drawn hands}},reen eyes,signature,text,{{too many fingers}},{{{ugly}}},username,uta,watermark,worst quality,{{{more than 2 legs}}},awkward hand sign,weird hand gesture,contorted hand,unnatural finger pose,deformed hand gesture,{shaka},{hang loose},{{rock on}},{shaka sign}',
+                                nocache: '0',
+                                noise_schedule: 'karras'
+                            });
+                            const imageUrl = `${getImageGenBaseUrl() || IMAGE_GEN_BASE_URL}/generate?${params.toString()}`;
+                            return `<div style="width: auto; height: auto; max-width: 100%; box-sizing: border-box; padding: 2px; border: 1px solid rgba(255,255,255,0.58); background: rgba(255,255,255,0.32); position: relative; border-radius: 12px; overflow: hidden; display: inline-flex; justify-content: center; align-items: center; box-shadow: 0 4px 14px rgba(148,163,184,0.06);"><img src="${escapeHtmlAttribute(imageUrl)}" alt="生成图片" style="max-width: 100%; height: auto; width: auto; display: block; object-fit: contain; border-radius: 9px; transition: transform 0.3s ease;"></div>`;
+                        }
+                        : replacement;
 
                     if (!regexPattern) return;
 
@@ -3585,11 +3613,11 @@ ${content}
                                 return part; // 保持原样
                             }
                             // 对普通文本应用替换
-                            return part.replace(re, replacement);
+                            return part.replace(re, replacer);
                         }).join('');
                     } else {
                         // 如果正则明确包含 <, > 或 ```，说明用户意图直接操作 HTML 或 Markdown 代码块，因此跳过保护直接替换
-                        result = result.replace(re, replacement);
+                        result = result.replace(re, replacer);
                     }
                     // --- Protection Logic End ---
 
@@ -3988,6 +4016,14 @@ ${content}
         };
 
         // API & Models
+        const getOpenAICompatUrl = (endpoint) => {
+            const baseUrl = normalizeBaseUrl(settings.apiUrl || '');
+            if (!baseUrl) return '';
+            const apiUrl = baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`;
+            return `${apiUrl}/${String(endpoint || '').replace(/^\/+/, '')}`;
+        };
+        const getCurrentChatModel = () => String(settings.model || settings.qualityModel || settings.balancedModel || settings.fastModel || '').trim();
+
         const fetchModels = async (isManual = false) => {
             try {
                 if (!settings.apiUrl || !settings.apiKey) {
@@ -3995,7 +4031,7 @@ ${content}
                     return;
                 }
                 if (isManual) showToast('正在获取模型列表...', 'info');
-                const url = settings.apiUrl.endsWith('/v1') ? `${settings.apiUrl}/models` : `${settings.apiUrl}/v1/models`;
+                const url = getOpenAICompatUrl('models');
                 const response = await fetch(url, {
                     headers: { 'Authorization': `Bearer ${settings.apiKey}` }
                 });
@@ -4053,7 +4089,7 @@ ${content}
                 const id = setTimeout(() => controller.abort(), 10000);
                 const startTime = performance.now();
 
-                const url = settings.apiUrl.endsWith('/v1') ? `${settings.apiUrl}/models` : `${settings.apiUrl}/v1/models`;
+                const url = getOpenAICompatUrl('models');
                 const response = await fetch(url, {
                     headers: { 'Authorization': `Bearer ${settings.apiKey}` },
                     signal: controller.signal
@@ -4103,6 +4139,41 @@ ${content}
             checkApiStatus();
             checkImageGenStatus();
             fetchQuota();
+        };
+
+        const buildImageGenUrl = (prompt = '1girl, masterpiece') => {
+            const params = new URLSearchParams({
+                tag: prompt,
+                token: settings.imageGenKey || '',
+                model: getImageGenModel() || 'nai-diffusion-4-5-full',
+                artist: '',
+                size: settings.imageSize || '',
+                steps: '40',
+                scale: '6',
+                cfg: '0',
+                sampler: 'k_dpmpp_2m_sde',
+                negative: 'low quality, worst quality, bad anatomy',
+                nocache: '1',
+                noise_schedule: 'karras'
+            });
+            return `${getImageGenBaseUrl() || IMAGE_GEN_BASE_URL}/generate?${params.toString()}`;
+        };
+
+        const testImageGeneration = () => {
+            if (!getImageGenBaseUrl()) {
+                showToast('请先填写生图 API 地址', 'warning');
+                return;
+            }
+            if (!settings.imageGenKey) {
+                showToast('请先填写生图 API Key', 'warning');
+                return;
+            }
+            if (!getImageGenModel()) {
+                showToast('请先填写生图模型', 'warning');
+                return;
+            }
+            window.open(buildImageGenUrl(), '_blank', 'noopener,noreferrer');
+            showToast('已打开测试生图请求，请查看新标签页结果', 'info');
         };
 
         // Removed Personal Channel and Friends Logic
@@ -4413,7 +4484,7 @@ ${content}
                 finishUiTemplateStatusAsToast('未选择变量分析模型', 'warning');
                 return false;
             }
-            const url = settings.apiUrl.endsWith('/v1') ? `${settings.apiUrl}/chat/completions` : `${settings.apiUrl}/v1/chat/completions`;
+            const url = getOpenAICompatUrl('chat/completions');
 
             try {
                 const updateRun = startUiTemplateUpdateRun();
@@ -5593,7 +5664,7 @@ ${content}
             }));
 
             // --- 优化后的控制台日志 ---
-            printAIRequestLogs(apiMessages, settings.model);
+            printAIRequestLogs(apiMessages, getCurrentChatModel());
             // ---------------------------
 
             let generatedAssistantMessageId = null;
@@ -5695,7 +5766,7 @@ ${content}
             };
 
             try {
-                        const url = settings.apiUrl.endsWith('/v1') ? `${settings.apiUrl}/chat/completions` : `${settings.apiUrl}/v1/chat/completions`;
+                        const url = getOpenAICompatUrl('chat/completions');
                         const response = await fetch(url, {
                             method: 'POST',
                             headers: {
@@ -5703,7 +5774,7 @@ ${content}
                                 'Authorization': `Bearer ${settings.apiKey}`
                             },
                             body: JSON.stringify({
-                                model: settings.model,
+                                model: getCurrentChatModel(),
                                 messages: apiMessages,
                                 temperature: settings.temperature,
                                 stream: settings.stream
@@ -6064,12 +6135,6 @@ ${content}
         };
 
         const getMemoryEmbeddingModel = () => (memorySettings.embeddingModel || '').trim();
-
-        const getOpenAICompatUrl = (endpoint) => {
-            const baseUrl = (settings.apiUrl || '').replace(/\/+$/, '');
-            const apiUrl = baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`;
-            return `${apiUrl}/${endpoint.replace(/^\/+/, '')}`;
-        };
 
         const trimMemoryText = (text, maxLength = 1800) => {
             const cleanText = String(text || '').replace(/\n{3,}/g, '\n\n').trim();
@@ -9111,6 +9176,8 @@ ${content}
                 name: imageGenRegexName,
                 regex: '/image###([\\s\\S]*?)###/g',
                 replacement: '<div style="width: auto; height: auto; max-width: 100%; box-sizing: border-box; padding: 2px; border: 1px solid rgba(255,255,255,0.58); background: rgba(255,255,255,0.32); position: relative; border-radius: 12px; overflow: hidden; display: inline-flex; justify-content: center; align-items: center; box-shadow: 0 4px 14px rgba(148,163,184,0.06);"><img src="' + baseUrl + '/generate?tag=$1&token=' + encodeURIComponent(imageGenToken) + '&model=' + encodeURIComponent(imageGenModel) + '&artist=' + encodedTargetArtists + '&size=' + encodeURIComponent(settings.imageSize) + '&steps=40&scale=6&cfg=0&sampler=k_dpmpp_2m_sde&negative={{{{bad anatomy}}}},{bad feet},bad hands,{{{bad proportions}}},{blurry},cloned face,cropped,{{{deformed}}},{{{disfigured}}},error,{{{extra arms}}},{extra digit},{{{extra legs}}},extra limbs,{{extra limbs}},{fewer digits},{{{fused fingers}}},gross proportions,ink eyes,ink hair,jpeg artifacts,{{{{long neck}}}},low quality,{malformed limbs},{{missing arms}},{missing fingers},{{missing legs}},{{{more than 2 nipples}}},mutated hands,{{{mutation}}},normal quality,owres,{{poorly drawn face}},{{poorly drawn hands}},reen eyes,signature,text,{{too many fingers}},{{{ugly}}},username,uta,watermark,worst quality,{{{more than 2 legs}}},awkward hand sign,weird hand gesture,contorted hand,unnatural finger pose,deformed hand gesture,{shaka},{hang loose},{{rock on}},{shaka sign}&nocache=0&noise_schedule=karras"  alt="生成图片" style="max-width: 100%; height: auto; width: auto; display: block; object-fit: contain; border-radius: 9px; transition: transform 0.3s ease;"></div>',
+                replacementMode: 'imageGenUrl',
+                imageArtist: targetArtists,
                 placement: [2],
                 markdownOnly: true,
                 promptOnly: false,
@@ -9230,7 +9297,7 @@ image###生成的提示词###
 
         };
 
-        watch(() => settings.imageGenKey, () => {
+        watch(() => [settings.imageGenApiUrl, settings.imageGenKey, settings.imageGenModel], () => {
             enforceSpecialRules();
             if (isAutoImageGenEnabled.value) {
                 updateImageGenRegexState({ enableRegex: true });
@@ -10705,7 +10772,7 @@ image###生成的提示词###
             isSquareLoading, squareUrl, onSquareLoad, // Square exports
             editorTab, characterDisplayLimit, displayedCharacters, loadMoreCharacters,
             isAutoImageGenEnabled,
-            apiStatus, apiLatency, imageGenStatus, imageGenLatency, checkAllStatuses, // Status Exports
+            apiStatus, apiLatency, imageGenStatus, imageGenLatency, checkAllStatuses, testImageGeneration, // Status Exports
             toggleAutoImageGen, setWorldInfoEnabled,
             showQuotaPanel, quotaValue, quotaLoading, quotaError, quotaAvailable, fetchQuota, // Quota exports
             // Memory System Exports
