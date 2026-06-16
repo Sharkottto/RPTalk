@@ -1907,8 +1907,9 @@
                                                     <span>生图服务</span>
                                                     <span class="text-gray-400">·</span>
                                                     <span class="text-gray-500 font-medium whitespace-nowrap">
-                                                        <span v-if="quotaLoading">获取中...</span>
-                                                        <span v-else>{{ quotaError ? '查询失败' : quotaValue + ' 次' }}</span>
+                                                <span v-if="settings.imageGenMode === 'openai'">OpenAI模式</span>
+                                                <span v-else-if="quotaLoading">获取中...</span>
+                                                <span v-else>{{ quotaError ? '查询失败' : quotaValue + ' 次' }}</span>
                                                     </span>
                                                 </div>
                                                 <span v-if="imageGenStatus === 'connected'"
@@ -2165,6 +2166,17 @@
                                                 class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500 hover:accent-teal-400 transition-all">
                                         </div>
 
+                                        <!-- Image API Mode -->
+                                        <div
+                                            class="bg-gray-50/60 p-4 rounded-xl border border-gray-100 hover:bg-white hover:border-gray-200 hover:shadow-sm transition-all duration-200 flex flex-col justify-center">
+                                            <label
+                                                class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">生图接口类型</label>
+                                            <custom-select v-model="settings.imageGenMode" :options="imageGenModeOptions"
+                                                button-class="rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:border-teal-400 focus:ring-teal-100"
+                                                menu-class="text-sm">
+                                            </custom-select>
+                                        </div>
+
                                         <!-- Image API URL -->
                                         <div
                                             class="bg-gray-50/60 p-4 rounded-xl border border-gray-100 hover:bg-white hover:border-gray-200 hover:shadow-sm transition-all duration-200 flex flex-col justify-center">
@@ -2172,7 +2184,7 @@
                                                 class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">生图 API 地址</label>
                                             <input v-model.trim="settings.imageGenApiUrl" type="text"
                                                 class="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 text-sm focus:ring-2 focus:ring-teal-100 focus:border-teal-400 focus:outline-none transition-all shadow-sm font-mono"
-                                                placeholder="https://nai.sta1n.cn">
+                                                :placeholder="settings.imageGenMode === 'openai' ? 'https://ai.wegoo.site/v1' : 'https://nai.sta1n.cn'">
                                         </div>
 
                                         <!-- Image Key -->
@@ -2192,7 +2204,7 @@
                                                 class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">生图模型</label>
                                             <input v-model.trim="settings.imageGenModel" type="text"
                                                 class="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 text-sm focus:ring-2 focus:ring-teal-100 focus:border-teal-400 focus:outline-none transition-all shadow-sm font-mono"
-                                                placeholder="nai-diffusion-4-5-full">
+                                                :placeholder="settings.imageGenMode === 'openai' ? 'gpt-image-1' : 'nai-diffusion-4-5-full'">
                                         </div>
 
                                         <div

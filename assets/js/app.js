@@ -181,7 +181,14 @@ createApp({
         const quotaAvailable = ref(false);
         const normalizeBaseUrl = (url) => String(url || '').trim().replace(/\/+$/, '');
         const getImageGenBaseUrl = () => normalizeBaseUrl(settings.imageGenApiUrl || IMAGE_GEN_BASE_URL);
-        const getImageGenModel = () => String(settings.imageGenModel || 'nai-diffusion-4-5-full').trim();
+        const getImageGenMode = () => settings.imageGenMode || 'openai';
+        const isOpenAIImageGenMode = () => getImageGenMode() === 'openai';
+        const getImageGenModel = () => String(settings.imageGenModel || (isOpenAIImageGenMode() ? 'gpt-image-1' : 'nai-diffusion-4-5-full')).trim();
+        const getOpenAIImageGenUrl = () => {
+            const baseUrl = getImageGenBaseUrl();
+            if (!baseUrl) return '';
+            return `${baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`}/images/generations`;
+        };
 
         const fetchQuota = async () => {
             quotaLoading.value = true;
@@ -189,6 +196,11 @@ createApp({
             try {
                 const imageGenToken = settings.imageGenKey.trim();
                 const baseUrl = getImageGenBaseUrl();
+                if (isOpenAIImageGenMode()) {
+                    quotaValue.value = 0;
+                    quotaAvailable.value = Boolean(imageGenToken && baseUrl);
+                    return;
+                }
                 if (!imageGenToken) {
                     quotaValue.value = 0;
                     quotaAvailable.value = false;
@@ -555,9 +567,10 @@ createApp({
             fontFamily: 'modern',
             fontFamilyVersion: 4,
             fontSize: window.innerWidth > 768 ? 16 : 14,
-            imageGenApiUrl: IMAGE_GEN_BASE_URL,
+            imageGenMode: 'openai',
+            imageGenApiUrl: 'https://ai.wegoo.site/v1',
             imageGenKey: '',
-            imageGenModel: 'nai-diffusion-4-5-full',
+            imageGenModel: 'gpt-image-1',
             imageStyle: 'vertical',
             customImageArtists: '',
             imageSize: '竖图',
@@ -717,8 +730,26 @@ createApp({
         }, { deep: true });
 
         // Watch image gen and model settings for sync
-        watch(() => [settings.imageGenApiUrl, settings.imageGenKey, settings.imageGenModel, settings.imageStyle, settings.customImageArtists, settings.imageGenCount, settings.qualityModel, settings.balancedModel, settings.fastModel, settings.uiTemplateModel, settings.fontFamily, settings.fontFamilyVersion], () => {
+        watch(() => [settings.imageGenMode, settings.imageGenApiUrl, settings.imageGenKey, settings.imageGenModel, settings.imageStyle, settings.customImageArtists, settings.imageGenCount, settings.qualityModel, settings.balancedModel, settings.fastModel, settings.uiTemplateModel, settings.fontFamily, settings.fontFamilyVersion], () => {
             syncSettingsToGenerator();
+        });
+
+        watch(() => settings.imageGenMode, (mode) => {
+            if (mode === 'openai') {
+                if (!settings.imageGenApiUrl || normalizeBaseUrl(settings.imageGenApiUrl) === IMAGE_GEN_BASE_URL) {
+                    settings.imageGenApiUrl = 'https://ai.wegoo.site/v1';
+                }
+                if (!settings.imageGenModel || settings.imageGenModel === 'nai-diffusion-4-5-full') {
+                    settings.imageGenModel = 'gpt-image-1';
+                }
+            } else if (mode === 'naiProxy') {
+                if (!settings.imageGenApiUrl || normalizeBaseUrl(settings.imageGenApiUrl) === 'https://ai.wegoo.site/v1') {
+                    settings.imageGenApiUrl = IMAGE_GEN_BASE_URL;
+                }
+                if (!settings.imageGenModel || settings.imageGenModel === 'gpt-image-1') {
+                    settings.imageGenModel = 'nai-diffusion-4-5-full';
+                }
+            }
         });
 
         const currentModelMode = ref('quality');
@@ -825,6 +856,10 @@ createApp({
             value: count,
             label: `${count} 张`
         }));
+        const imageGenModeOptions = [
+            { value: 'openai', label: 'Wegoo / OpenAI Images' },
+            { value: 'naiProxy', label: 'NAI 代理兼容' }
+        ];
         const uiTemplatePlacementOptions = [
             { value: 'top', label: '对话顶部' },
             { value: 'bottom', label: '对话底部' }
@@ -3546,6 +3581,11 @@ ${content}
                     const replacer = script.replacementMode === 'imageGenUrl'
                         ? (...args) => {
                             const prompt = args[1] || '';
+                            if (isOpenAIImageGenMode()) {
+                                const id = `rphub-img-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                                queueOpenAIImageGeneration(id, prompt);
+                                return `<div class="rphub-image-gen-placeholder bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-500" data-image-gen-id="${escapeHtmlAttribute(id)}">生图生成中...</div>`;
+                            }
                             const params = new URLSearchParams({
                                 tag: prompt,
                                 token: settings.imageGenKey || '',
@@ -4141,7 +4181,75 @@ ${content}
             fetchQuota();
         };
 
+        const getOpenAIImageSize = () => {
+            const value = String(settings.imageSize || '');
+            if (value.includes('横')) return '1536x1024';
+            if (value.includes('方')) return '1024x1024';
+            return '1024x1536';
+        };
+
+        const extractImageUrlFromOpenAIResponse = (data) => {
+            const item = Array.isArray(data?.data) ? data.data[0] : null;
+            if (!item) return '';
+            if (item.url) return item.url;
+            const b64 = item.b64_json || item.b64;
+            return b64 ? `data:image/png;base64,${b64}` : '';
+        };
+
+        const pendingImageGenerations = new Set();
+        const waitForImageGenElement = async (id, attempts = 20) => {
+            for (let i = 0; i < attempts; i++) {
+                const el = document.querySelector(`[data-image-gen-id="${CSS.escape(id)}"]`);
+                if (el) return el;
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            return null;
+        };
+        const queueOpenAIImageGeneration = (id, prompt) => {
+            if (!id || pendingImageGenerations.has(id)) return;
+            pendingImageGenerations.add(id);
+            setTimeout(async () => {
+                const el = await waitForImageGenElement(id);
+                try {
+                    if (!settings.imageGenKey) throw new Error('请先填写生图 API Key');
+                    const response = await fetch(getOpenAIImageGenUrl(), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${settings.imageGenKey}`
+                        },
+                        body: JSON.stringify({
+                            model: getImageGenModel(),
+                            prompt,
+                            size: getOpenAIImageSize(),
+                            n: 1
+                        })
+                    });
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        const message = data?.error?.message || data?.message || `生图请求失败 (${response.status})`;
+                        throw new Error(message);
+                    }
+                    const imageUrl = extractImageUrlFromOpenAIResponse(data);
+                    if (!imageUrl) throw new Error('生图接口没有返回图片地址');
+                    if (el) {
+                        el.innerHTML = `<img src="${escapeHtmlAttribute(imageUrl)}" alt="生成图片" style="max-width: 100%; height: auto; width: auto; display: block; object-fit: contain; border-radius: 9px;">`;
+                        el.className = 'rphub-image-gen-result inline-flex max-w-full rounded-xl overflow-hidden border border-gray-200 bg-white p-0.5';
+                    }
+                } catch (error) {
+                    console.error('Image generation failed:', error);
+                    if (el) {
+                        el.textContent = `生图失败：${error.message || '未知错误'}`;
+                        el.className = 'rphub-image-gen-error bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600';
+                    }
+                } finally {
+                    pendingImageGenerations.delete(id);
+                }
+            }, 0);
+        };
+
         const buildImageGenUrl = (prompt = '1girl, masterpiece') => {
+            if (isOpenAIImageGenMode()) return getOpenAIImageGenUrl();
             const params = new URLSearchParams({
                 tag: prompt,
                 token: settings.imageGenKey || '',
@@ -4170,6 +4278,18 @@ ${content}
             }
             if (!getImageGenModel()) {
                 showToast('请先填写生图模型', 'warning');
+                return;
+            }
+            if (isOpenAIImageGenMode()) {
+                const id = `rphub-test-img-${Date.now()}`;
+                const container = document.createElement('div');
+                container.dataset.imageGenId = id;
+                container.className = 'fixed z-[9999] bottom-4 right-4 max-w-sm bg-white border border-gray-200 rounded-xl shadow-xl px-4 py-3 text-sm text-gray-600';
+                container.textContent = '测试生图生成中...';
+                document.body.appendChild(container);
+                queueOpenAIImageGeneration(id, '1girl, masterpiece');
+                setTimeout(() => container.remove(), 60000);
+                showToast('已发起 Wegoo/OpenAI 生图测试', 'info');
                 return;
             }
             window.open(buildImageGenUrl(), '_blank', 'noopener,noreferrer');
@@ -10762,7 +10882,7 @@ image###生成的提示词###
             showUpdateModal, updateCountdown, latestUpdate, closeUpdateModal, isUpdateScrolledToBottom, checkUpdateScroll, // Update Modal
             showConfirmModal, confirmMessage, modelMode, showNoMemoryNeededModal, // Export for template
             isGenerating, isRemoteGenerating, remoteEstimatedTime, isReceiving, isThinking, hasActiveToolInlineWork, activeToolInlineStatusText, isConversationBusy, activeToolContinuationMessageId, activeToolContinuationToolCallId, activeToolContinuationHasResponse, activeNativeReasoning, userInput, modelSearchQuery, activeModelTag, modelTags, characterSearchQuery, availableModels, filteredModels, filteredCharacters,
-            user, settings, apiProviderOptions, selectedApiProvider, isCustomApiProvider, customApiProviderOption, customApiProviderOptions, showApiProviderSelector, selectApiProvider, characters, currentCharacter, currentCharacterIndex, chatHistory, displayedChatMessages, handleChatScroll, presets, presetRoleOptions, fontFamilyOptions, imageStyleOptions, imageSizeOptions, imageGenCountOptions, scopeOptions, uiTemplatePlacementOptions, worldInfoPositionOptions, getPresetRoleLabel, getPresetRoleDisplayLabel, getPresetRoleBadgeClass, regexScripts, worldInfo,
+            user, settings, apiProviderOptions, selectedApiProvider, isCustomApiProvider, customApiProviderOption, customApiProviderOptions, showApiProviderSelector, selectApiProvider, characters, currentCharacter, currentCharacterIndex, chatHistory, displayedChatMessages, handleChatScroll, presets, presetRoleOptions, fontFamilyOptions, imageStyleOptions, imageSizeOptions, imageGenModeOptions, imageGenCountOptions, scopeOptions, uiTemplatePlacementOptions, worldInfoPositionOptions, getPresetRoleLabel, getPresetRoleDisplayLabel, getPresetRoleBadgeClass, regexScripts, worldInfo,
             activeTools, activeToolAggressivenessOptions: ACTIVE_TOOL_AGGRESSIVENESS_OPTIONS, getActiveToolAggressivenessLabel, editingActiveTool, normalizeActiveTools, isWebActiveTool, isWorldInfoActiveTool, getWorldInfoAccessMode, getActiveToolDisplayDescription, canConfigureActiveToolResultCount, getActiveToolResultCountMin, getActiveToolResultCountMax,
             getToolCallModeText, hasThinkingOrTools, isMessageThinkingOrRunning, isThinkingSummaryOpen, toggleThinkingSummary, markThinkingSummaryDetailOpened, getTimelineSteps,
             activeRegexCount, activeWorldInfoCount, activeUiTemplateCount, chatRoundStats, totalContextLength,
