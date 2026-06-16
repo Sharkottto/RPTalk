@@ -1,0 +1,18 @@
+{
+  "name": "Roleplay Hub",
+  "short_name": "RP Hub",
+  "description": "本地优先的 AI Roleplay 对话与角色卡工具。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

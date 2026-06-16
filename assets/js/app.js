@@ -3975,6 +3975,10 @@ ${content}
         // API & Models
         const fetchModels = async (isManual = false) => {
             try {
+                if (!settings.apiUrl || !settings.apiKey) {
+                    if (isManual) showToast('请先配置 API 地址和 Key', 'warning');
+                    return;
+                }
                 if (isManual) showToast('正在获取模型列表...', 'info');
                 const url = settings.apiUrl.endsWith('/v1') ? `${settings.apiUrl}/models` : `${settings.apiUrl}/v1/models`;
                 const response = await fetch(url, {
@@ -3986,7 +3990,7 @@ ${content}
                 if (isManual) showToast(`成功获取 ${availableModels.value.length} 个模型`, 'success');
             } catch (error) {
                 console.error(error);
-                showToast('获取模型失败: ' + error.message, 'error');
+                if (isManual) showToast('获取模型失败: ' + error.message, 'error');
             }
         };
 
