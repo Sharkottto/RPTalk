@@ -513,6 +513,12 @@ createApp({
         const apiLatency = ref(0);
         const imageGenStatus = ref('unknown');
         const imageGenLatency = ref(0);
+        const imageGenTestResult = reactive({
+            state: 'idle',
+            message: '',
+            endpoint: '',
+            imageUrl: ''
+        });
 
         const user = reactive({
             name: '请前往设置自定义你的名称',
@@ -4205,33 +4211,39 @@ ${content}
             }
             return null;
         };
+        const requestOpenAIImageGeneration = async (prompt) => {
+            if (!settings.imageGenKey) throw new Error('请先填写生图 API Key');
+            const endpoint = getOpenAIImageGenUrl();
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${settings.imageGenKey}`
+                },
+                body: JSON.stringify({
+                    model: getImageGenModel(),
+                    prompt,
+                    size: getOpenAIImageSize(),
+                    n: 1
+                })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const message = data?.error?.message || data?.message || `生图请求失败 (${response.status})`;
+                throw new Error(message);
+            }
+            const imageUrl = extractImageUrlFromOpenAIResponse(data);
+            if (!imageUrl) throw new Error('生图接口没有返回图片地址');
+            return { imageUrl, endpoint };
+        };
+
         const queueOpenAIImageGeneration = (id, prompt) => {
             if (!id || pendingImageGenerations.has(id)) return;
             pendingImageGenerations.add(id);
             setTimeout(async () => {
                 const el = await waitForImageGenElement(id);
                 try {
-                    if (!settings.imageGenKey) throw new Error('请先填写生图 API Key');
-                    const response = await fetch(getOpenAIImageGenUrl(), {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${settings.imageGenKey}`
-                        },
-                        body: JSON.stringify({
-                            model: getImageGenModel(),
-                            prompt,
-                            size: getOpenAIImageSize(),
-                            n: 1
-                        })
-                    });
-                    const data = await response.json().catch(() => ({}));
-                    if (!response.ok) {
-                        const message = data?.error?.message || data?.message || `生图请求失败 (${response.status})`;
-                        throw new Error(message);
-                    }
-                    const imageUrl = extractImageUrlFromOpenAIResponse(data);
-                    if (!imageUrl) throw new Error('生图接口没有返回图片地址');
+                    const { imageUrl } = await requestOpenAIImageGeneration(prompt);
                     if (el) {
                         el.innerHTML = `<img src="${escapeHtmlAttribute(imageUrl)}" alt="生成图片" style="max-width: 100%; height: auto; width: auto; display: block; object-fit: contain; border-radius: 9px;">`;
                         el.className = 'rphub-image-gen-result inline-flex max-w-full rounded-xl overflow-hidden border border-gray-200 bg-white p-0.5';
@@ -4267,29 +4279,44 @@ ${content}
             return `${getImageGenBaseUrl() || IMAGE_GEN_BASE_URL}/generate?${params.toString()}`;
         };
 
-        const testImageGeneration = () => {
+        const testImageGeneration = async () => {
+            imageGenTestResult.state = 'idle';
+            imageGenTestResult.message = '';
+            imageGenTestResult.imageUrl = '';
+            imageGenTestResult.endpoint = isOpenAIImageGenMode() ? getOpenAIImageGenUrl() : buildImageGenUrl();
             if (!getImageGenBaseUrl()) {
+                imageGenTestResult.state = 'error';
+                imageGenTestResult.message = '请先填写生图 API 地址';
                 showToast('请先填写生图 API 地址', 'warning');
                 return;
             }
             if (!settings.imageGenKey) {
+                imageGenTestResult.state = 'error';
+                imageGenTestResult.message = '请先填写生图 API Key';
                 showToast('请先填写生图 API Key', 'warning');
                 return;
             }
             if (!getImageGenModel()) {
+                imageGenTestResult.state = 'error';
+                imageGenTestResult.message = '请先填写生图模型';
                 showToast('请先填写生图模型', 'warning');
                 return;
             }
             if (isOpenAIImageGenMode()) {
-                const id = `rphub-test-img-${Date.now()}`;
-                const container = document.createElement('div');
-                container.dataset.imageGenId = id;
-                container.className = 'fixed z-[9999] bottom-4 right-4 max-w-sm bg-white border border-gray-200 rounded-xl shadow-xl px-4 py-3 text-sm text-gray-600';
-                container.textContent = '测试生图生成中...';
-                document.body.appendChild(container);
-                queueOpenAIImageGeneration(id, '1girl, masterpiece');
-                setTimeout(() => container.remove(), 60000);
-                showToast('已发起 Wegoo/OpenAI 生图测试', 'info');
+                imageGenTestResult.state = 'running';
+                imageGenTestResult.message = '请求中...';
+                try {
+                    const { imageUrl, endpoint } = await requestOpenAIImageGeneration('1girl, masterpiece');
+                    imageGenTestResult.state = 'success';
+                    imageGenTestResult.message = '测试成功';
+                    imageGenTestResult.endpoint = endpoint;
+                    imageGenTestResult.imageUrl = imageUrl;
+                    showToast('测试生图成功', 'success');
+                } catch (error) {
+                    imageGenTestResult.state = 'error';
+                    imageGenTestResult.message = error?.message || '测试失败';
+                    showToast('测试生图失败', 'error');
+                }
                 return;
             }
             window.open(buildImageGenUrl(), '_blank', 'noopener,noreferrer');
@@ -10892,7 +10919,7 @@ image###生成的提示词###
             isSquareLoading, squareUrl, onSquareLoad, // Square exports
             editorTab, characterDisplayLimit, displayedCharacters, loadMoreCharacters,
             isAutoImageGenEnabled,
-            apiStatus, apiLatency, imageGenStatus, imageGenLatency, checkAllStatuses, testImageGeneration, // Status Exports
+            apiStatus, apiLatency, imageGenStatus, imageGenLatency, imageGenTestResult, checkAllStatuses, testImageGeneration, // Status Exports
             toggleAutoImageGen, setWorldInfoEnabled,
             showQuotaPanel, quotaValue, quotaLoading, quotaError, quotaAvailable, fetchQuota, // Quota exports
             // Memory System Exports
